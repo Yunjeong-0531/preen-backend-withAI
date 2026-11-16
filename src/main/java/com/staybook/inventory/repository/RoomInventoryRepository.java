@@ -69,6 +69,20 @@ public interface RoomInventoryRepository extends JpaRepository<RoomInventory, Lo
     List<RoomInventory> findForStay(@Param("roomIds") Collection<Long> roomIds, @Param("from") LocalDate from,
                                     @Param("to") LocalDate to);
 
+    /**
+     * from 이상 to 미만의 모든 숙박일(nights일)에 예약할 수 있는 객실의 ID.
+     * 예약할 수 있는 날짜 수가 박수와 같아야 하므로, 재고 행이 없거나 마감·매진인 날이 하루라도 있으면 빠진다.
+     */
+    @Query("""
+            select i.roomId from RoomInventory i
+            where i.stayDate >= :from and i.stayDate < :to
+              and i.closed = false and i.bookedCount + i.heldCount < i.totalCount
+            group by i.roomId
+            having count(i.id) = :nights
+            """)
+    List<Long> findRoomIdsAvailableForStay(@Param("from") LocalDate from, @Param("to") LocalDate to,
+                                           @Param("nights") long nights);
+
     List<RoomInventory> findByRoomIdAndStayDateBetweenOrderByStayDateAsc(Long roomId, LocalDate start,
                                                                          LocalDate endInclusive);
 

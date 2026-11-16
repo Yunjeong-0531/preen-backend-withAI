@@ -360,6 +360,10 @@ class ReservationPaymentTest extends IntegrationTestSupport {
         JsonNode reservation = reserveOk(guest, listing.roomId(), checkIn, checkIn.plusDays(2), 3);   // 24만원
         long id = reservation.get("id").asLong();
         pay(guest, reservation);
+        // 환불 전에는 예약 상세에 환불 정보가 없다
+        getWith("/api/reservations/" + id, guest.token())
+                .andExpect(jsonPath("$.data.status").value("CONFIRMED"))
+                .andExpect(jsonPath("$.data.refund").doesNotExist());
 
         cancel(guest, id)
                 .andExpect(status().isOk())
@@ -382,6 +386,21 @@ class ReservationPaymentTest extends IntegrationTestSupport {
         assertThat(refunds.get(0).get("refunded_at")).isNotNull();
         assertThat(jdbc.queryForObject("select status from payments where reservation_id = ?", String.class, id))
                 .isEqualTo("REFUNDED");
+
+        // 취소 뒤에는 예약 상세와 목록에서 환불 정보를 볼 수 있다
+        getWith("/api/reservations/" + id, guest.token())
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("CANCELLED"))
+                .andExpect(jsonPath("$.data.refund.refundAmount").value(240000))
+                .andExpect(jsonPath("$.data.refund.penaltyAmount").value(0))
+                .andExpect(jsonPath("$.data.refund.status").value("COMPLETED"))
+                .andExpect(jsonPath("$.data.refund.refundedAt").isNotEmpty());
+        getWith("/api/reservations/me", guest.token())
+                .andExpect(jsonPath("$.data.content[0].id").value(id))
+                .andExpect(jsonPath("$.data.content[0].refund.refundAmount").value(240000))
+                .andExpect(jsonPath("$.data.content[0].refund.status").value("COMPLETED"));
+        getWith("/api/host/reservations", host.token())
+                .andExpect(jsonPath("$.data.content[0].refund.status").value("COMPLETED"));
 
         // 취소된 날짜는 다른 회원이 다시 예약할 수 있다
         reserveOk(createMember(), listing.roomId(), checkIn, checkIn.plusDays(2), 2);
@@ -408,6 +427,10 @@ class ReservationPaymentTest extends IntegrationTestSupport {
 
         assertThat(refunds(id).get(0)).containsEntry("amount", new BigDecimal("16666.00"))
                 .containsEntry("penalty_amount", new BigDecimal("16667.00")).containsEntry("status", "COMPLETED");
+        getWith("/api/reservations/" + id, guest.token())
+                .andExpect(jsonPath("$.data.refund.refundAmount").value(16666))
+                .andExpect(jsonPath("$.data.refund.penaltyAmount").value(16667))
+                .andExpect(jsonPath("$.data.refund.status").value("COMPLETED"));
     }
 
     @Test
@@ -471,6 +494,9 @@ class ReservationPaymentTest extends IntegrationTestSupport {
         assertThat(inventoryCounts(listing.roomId(), checkIn)).isEqualTo("held=0,booked=0");
         assertThat(history(id)).containsExactly("null>PENDING:user:예약 생성", "PENDING>CANCELLED:user:결제 전 취소");
         assertThat(refunds(id)).isEmpty();
+        getWith("/api/reservations/" + id, guest.token())
+                .andExpect(jsonPath("$.data.status").value("CANCELLED"))
+                .andExpect(jsonPath("$.data.refund").doesNotExist());
         // 취소한 예약은 결제할 수 없다 (승인 시점에 다시 확인한다)
         confirmPayment(guest, orderId, "pay-" + UUID.randomUUID(), 100000)
                 .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("PAYMENT-007"));
@@ -494,6 +520,11 @@ class ReservationPaymentTest extends IntegrationTestSupport {
         assertThat(refunds(id).get(0)).containsEntry("status", "FAILED")
                 .containsEntry("amount", new BigDecimal("100000.00"));
         assertThat(refunds(id).get(0).get("refunded_at")).isNull();
+        // 환불이 실패한 것도 예약 상세에 그대로 보인다
+        getWith("/api/reservations/" + id, guest.token())
+                .andExpect(jsonPath("$.data.refund.refundAmount").value(100000))
+                .andExpect(jsonPath("$.data.refund.status").value("FAILED"))
+                .andExpect(jsonPath("$.data.refund.refundedAt").doesNotExist());
         assertThat(jdbc.queryForObject("select status from payments where reservation_id = ?", String.class, id))
                 .isEqualTo("PAID");
         assertThat(jdbc.queryForList("select concat(l.event_type, ':', l.response_code) from payment_logs l "

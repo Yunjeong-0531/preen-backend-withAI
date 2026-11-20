@@ -1,4 +1,4 @@
-# StayBook 동시성·데드락 처리 분석
+# StayBook 동시성·데드락 처리 분석 (2026-11-16)
 
 기준: `feature/review-music-ci` 브랜치 코드 (2026-11-13)
 

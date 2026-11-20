@@ -9,8 +9,11 @@ import com.staybook.accommodation.service.AccommodationQueryService;
 import com.staybook.common.response.ApiResponse;
 import com.staybook.common.response.PageResponse;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Size;
+import java.time.LocalDate;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -42,17 +45,23 @@ public class AccommodationController {
     }
 
     /**
-     * 목록 검색. 조건(regionId, categoryId, guestCount)은 모두 선택이고 함께 쓰면 모두 만족하는 숙소만 나온다.
+     * 목록 검색. 조건(regionId, categoryId, keyword, guestCount, checkIn·checkOut)은 모두 선택이고
+     * 함께 쓰면 모두 만족하는 숙소만 나온다.
+     * keyword는 숙소명 검색어, checkIn·checkOut(yyyy-MM-dd)은 함께 보내며 그 기간에 예약할 수 있는 객실이 있는 숙소만 나온다.
      * page는 0부터, size는 최대 50.
      */
     @GetMapping("/api/accommodations")
     public ApiResponse<PageResponse<AccommodationSummary>> search(
             @RequestParam(required = false) Long regionId,
             @RequestParam(required = false) Long categoryId,
+            @RequestParam(required = false) @Size(max = 100, message = "검색어는 100자 이하여야 합니다.") String keyword,
             @RequestParam(required = false) @Min(value = 1, message = "인원은 1명 이상이어야 합니다.") Integer guestCount,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate checkIn,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate checkOut,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        return ApiResponse.ok(queryService.search(regionId, categoryId, guestCount, page, size));
+        return ApiResponse.ok(queryService.search(regionId, categoryId, keyword, guestCount, checkIn, checkOut,
+                page, size));
     }
 
     @GetMapping("/api/accommodations/{id}")

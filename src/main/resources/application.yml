@@ -84,7 +84,7 @@ staybook:
       client-secret: ${NAVER_CLIENT_SECRET:}
       redirect-uri: ${NAVER_REDIRECT_URI:http://localhost:3000/oauth/naver/callback}
   cors:
-    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5173}
   scheduling:
     enabled: true
   storage:

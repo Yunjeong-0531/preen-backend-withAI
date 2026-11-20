@@ -19,6 +19,7 @@ import com.staybook.reservation.dto.ReservationDtos.CancelResponse;
 import com.staybook.reservation.dto.ReservationDtos.CreateRequest;
 import com.staybook.reservation.dto.ReservationDtos.PaymentInfo;
 import com.staybook.reservation.dto.ReservationDtos.PriceItemResponse;
+import com.staybook.reservation.dto.ReservationDtos.RefundInfo;
 import com.staybook.reservation.dto.ReservationDtos.ReservationResponse;
 import com.staybook.reservation.dto.ReservationDtos.StayInfo;
 import com.staybook.reservation.exception.ReservationErrorCode;
@@ -74,6 +75,7 @@ public class ReservationService {
     private final UserService userService;
     private final AccommodationQueryService accommodationQueryService;
     private final InventoryService inventoryService;
+    private final RefundInfoProvider refundInfoProvider;
     private final ApplicationEventPublisher eventPublisher;
     private final TransactionTemplate transactionTemplate;
     private final ReservationProperties properties;
@@ -135,7 +137,7 @@ public class ReservationService {
                 .reduce(BigDecimal.ZERO, BigDecimal::add));
 
         recordHistory(reservation.getId(), userId, null, Status.PENDING, "예약 생성", now);
-        return toResponse(reservation, items, room);
+        return toResponse(reservation, items, room, null);
     }
 
     // ---------- 조회 ----------
@@ -145,7 +147,7 @@ public class ReservationService {
         return toPage(reservationRepository.findByUserId(userId, pageable(page, size)));
     }
 
-    /** 본인 예약만 볼 수 있다. 남의 예약은 없는 예약으로 응답한다. */
+    /** 본인 예약만 볼 수 있다. 남의 예약은 없는 예약으로 응답한다. 환불 내역이 있으면 함께 준다. */
     @Transactional(readOnly = true)
     public ReservationResponse getDetail(Long userId, Long reservationId) {
         Reservation reservation = reservationRepository.findById(reservationId)
@@ -357,17 +359,20 @@ public class ReservationService {
         Map<Long, List<ReservationPriceItem>> items = ids.isEmpty() ? Map.of()
                 : priceItemRepository.findByReservationIdInOrderByIdAsc(ids).stream()
                 .collect(Collectors.groupingBy(ReservationPriceItem::getReservationId));
+        Map<Long, RefundInfo> refunds = refundInfoProvider.findByReservationIds(ids);
         return PageResponse.from(page, r -> toResponse(r, items.getOrDefault(r.getId(), List.of()),
-                accommodationQueryService.getRoomInfo(r.getRoomId())));
+                accommodationQueryService.getRoomInfo(r.getRoomId()), refunds.get(r.getId())));
     }
 
     private ReservationResponse toResponse(Reservation reservation) {
         return toResponse(reservation,
                 priceItemRepository.findByReservationIdInOrderByIdAsc(List.of(reservation.getId())),
-                accommodationQueryService.getRoomInfo(reservation.getRoomId()));
+                accommodationQueryService.getRoomInfo(reservation.getRoomId()),
+                refundInfoProvider.findByReservationIds(List.of(reservation.getId())).get(reservation.getId()));
     }
 
-    private ReservationResponse toResponse(Reservation r, List<ReservationPriceItem> items, RoomInfo room) {
+    private ReservationResponse toResponse(Reservation r, List<ReservationPriceItem> items, RoomInfo room,
+                                           RefundInfo refund) {
         JsonNode policy;
         try {
             policy = objectMapper.readTree(r.getRefundPolicySnapshot());
@@ -380,6 +385,6 @@ public class ReservationService {
                 r.getHoldExpiresAt(), r.getCancelledAt(), r.getCreatedAt(),
                 items.stream().map(i -> new PriceItemResponse(i.getItemType().name(), i.getName(), i.getAmount()))
                         .toList(),
-                policy);
+                policy, refund);
     }
 }

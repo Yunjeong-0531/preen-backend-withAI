@@ -26,24 +26,32 @@ public interface AccommodationRepository extends JpaRepository<Accommodation, Lo
     /**
      * 목록 검색. 지역 조건을 쓰지 않을 때는 filterRegion=false,
      * 카테고리·인원 조건을 쓰지 않을 때는 categoryId=null, guestCount=null로 넘긴다.
-     * 인원 조건은 roomStatus인 객실 중 최대 인원이 guestCount 이상인 객실이 있는지로 본다.
+     * 숙소명 조건을 쓰지 않을 때는 namePattern=null, 날짜 조건을 쓰지 않을 때는 filterRooms=false로 넘긴다.
+     * namePattern은 LIKE 패턴이고 이스케이프 문자는 '!'다. 대소문자는 구분하지 않는다.
+     * 인원·날짜 조건은 roomStatus인 객실 중 "최대 인원이 guestCount 이상이고 availableRoomIds에 드는" 객실이
+     * 하나라도 있는지로 본다. 두 조건을 함께 쓰면 한 객실이 둘 다 만족해야 한다.
      */
     @Query("""
             select a from Accommodation a
             where a.listingStatus = :listingStatus
               and (:filterRegion = false or a.regionId in :regionIds)
               and (:categoryId is null or a.categoryId = :categoryId)
-              and (:guestCount is null or exists (
+              and (:namePattern is null or lower(a.name) like lower(:namePattern) escape '!')
+              and ((:guestCount is null and :filterRooms = false) or exists (
                     select 1 from Room r
                     where r.accommodationId = a.id
                       and r.status = :roomStatus
-                      and r.maxCapacity >= :guestCount))
+                      and (:guestCount is null or r.maxCapacity >= :guestCount)
+                      and (:filterRooms = false or r.id in :availableRoomIds)))
             """)
     Page<Accommodation> search(@Param("listingStatus") Accommodation.ListingStatus listingStatus,
                                @Param("roomStatus") Room.RoomStatus roomStatus,
                                @Param("filterRegion") boolean filterRegion,
                                @Param("regionIds") Collection<Long> regionIds,
                                @Param("categoryId") Long categoryId,
+                               @Param("namePattern") String namePattern,
                                @Param("guestCount") Integer guestCount,
+                               @Param("filterRooms") boolean filterRooms,
+                               @Param("availableRoomIds") Collection<Long> availableRoomIds,
                                Pageable pageable);
 }

@@ -222,7 +222,7 @@ public class InventoryService {
     }
 
     /** 1박 이상, 최대 박수 이하인지 검사하고 박수를 돌려준다. */
-    private long validateStay(LocalDate checkIn, LocalDate checkOut) {
+    static long validateStay(LocalDate checkIn, LocalDate checkOut) {
         if (checkIn == null || checkOut == null || !checkOut.isAfter(checkIn)) {
             throw new BaseException(InventoryErrorCode.INVALID_DATE_RANGE);
         }

@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 800 450" xmlns="http://www.w3.org/2000/svg" width="800" height="450" style="background-color: #FFFFFF; font-family: -apple-system, BlinkMacSystemFont, 'Pretendard', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+  <!-- 배경 카드 -->
+  <rect width="800" height="450" rx="16" fill="#FFFFFF" stroke="#E2E8F0" stroke-width="2"/>
+  
+  <!-- 상단 타이틀 -->
+  <text x="400" y="36" text-anchor="middle" font-size="18" font-weight="700" fill="#0F172A">Spring Framework 모듈 구조 (Spring Framework Architecture)</text>
+  
+  <!-- 1. Test 모듈 (전 영역 가로지름) -->
+  <g transform="translate(40, 52)">
+    <rect width="720" height="44" rx="8" fill="#F8FAFC" stroke="#94A3B8" stroke-width="1.5" stroke-dasharray="5 3"/>
+    <text x="24" y="27" font-size="14" font-weight="700" fill="#475569">Test</text>
+    <text x="75" y="27" font-size="13" fill="#64748B">Unit Test, Integration Test, Mock Objects, TestContext Framework (@SpringBootTest)</text>
+  </g>
+
+  <!-- 2. Web 계층 -->
+  <g transform="translate(40, 106)">
+    <rect width="720" height="74" rx="8" fill="#EFF6FF" stroke="#3B82F6" stroke-width="1.5"/>
+    <text x="20" y="24" font-size="13" font-weight="700" fill="#1D4ED8">Web (Remoting / Web Layer)</text>
+    <g transform="translate(20, 32)">
+      <rect x="0" y="0" width="165" height="32" rx="6" fill="#FFFFFF" stroke="#93C5FD"/>
+      <text x="82" y="20" text-anchor="middle" font-size="12" font-weight="600" fill="#1E40AF">Servlet (Spring MVC)</text>
+      
+      <rect x="175" y="0" width="145" height="32" rx="6" fill="#FFFFFF" stroke="#93C5FD"/>
+      <text x="247" y="20" text-anchor="middle" font-size="12" font-weight="600" fill="#1E40AF">Web (공통 / 업로드)</text>
+      
+      <rect x="330" y="0" width="110" height="32" rx="6" fill="#FFFFFF" stroke="#93C5FD"/>
+      <text x="385" y="20" text-anchor="middle" font-size="12" font-weight="600" fill="#1E40AF">WebSocket</text>
+      
+      <rect x="450" y="0" width="115" height="32" rx="6" fill="#FFFFFF" stroke="#93C5FD"/>
+      <text x="507" y="20" text-anchor="middle" font-size="12" font-weight="600" fill="#1E40AF">WebFlux (5.0+)</text>
+      
+      <rect x="575" y="0" width="105" height="32" rx="6" fill="#F1F5F9" stroke="#CBD5E1"/>
+      <text x="627" y="20" text-anchor="middle" font-size="11" fill="#94A3B8">Portlet (제거됨)</text>
+    </g>
+  </g>
+
+  <!-- 3. Data Access / Integration 계층 -->
+  <g transform="translate(40, 190)">
+    <rect width="720" height="74" rx="8" fill="#FFFBEB" stroke="#F59E0B" stroke-width="1.5"/>
+    <text x="20" y="24" font-size="13" font-weight="700" fill="#B45309">Data Access / Integration</text>
+    <g transform="translate(20, 32)">
+      <rect x="0" y="0" width="110" height="32" rx="6" fill="#FFFFFF" stroke="#FCD34D"/>
+      <text x="55" y="20" text-anchor="middle" font-size="12" font-weight="600" fill="#92400E">JDBC</text>
+      
+      <rect x="120" y="0" width="160" height="32" rx="6" fill="#FFFFFF" stroke="#FCD34D"/>
+      <text x="200" y="20" text-anchor="middle" font-size="12" font-weight="600" fill="#92400E">ORM (JPA / Hibernate)</text>
+      
+      <rect x="290" y="0" width="140" height="32" rx="6" fill="#FFFFFF" stroke="#FCD34D"/>
+      <text x="360" y="20" text-anchor="middle" font-size="12" font-weight="600" fill="#92400E">Transactions</text>
+      
+      <rect x="440" y="0" width="115" height="32" rx="6" fill="#FFFFFF" stroke="#FCD34D"/>
+      <text x="497" y="20" text-anchor="middle" font-size="12" font-weight="600" fill="#92400E">JMS / Message</text>
+      
+      <rect x="565" y="0" width="115" height="32" rx="6" fill="#F1F5F9" stroke="#CBD5E1"/>
+      <text x="622" y="20" text-anchor="middle" font-size="11" fill="#94A3B8">OXM (XML변환)</text>
+    </g>
+  </g>
+
+  <!-- 4. AOP / Aspects / Instrumentation 계층 -->
+  <g transform="translate(40, 274)">
+    <rect width="720" height="66" rx="8" fill="#FAF5FF" stroke="#A855F7" stroke-width="1.5"/>
+    <text x="20" y="22" font-size="13" font-weight="700" fill="#7E22CE">AOP / Aspects / Instrumentation</text>
+    <g transform="translate(20, 28)">
+      <rect x="0" y="0" width="215" height="28" rx="6" fill="#FFFFFF" stroke="#D8B4FE"/>
+      <text x="107" y="18" text-anchor="middle" font-size="12" font-weight="600" fill="#6B21A8">AOP (관점 지향 프로그래밍)</text>
+      
+      <rect x="230" y="0" width="215" height="28" rx="6" fill="#FFFFFF" stroke="#D8B4FE"/>
+      <text x="337" y="18" text-anchor="middle" font-size="12" font-weight="600" fill="#6B21A8">Aspects (AspectJ 연동)</text>
+      
+      <rect x="460" y="0" width="220" height="28" rx="6" fill="#FFFFFF" stroke="#D8B4FE"/>
+      <text x="570" y="18" text-anchor="middle" font-size="12" font-weight="600" fill="#6B21A8">Instrumentation (바이트코드 조작)</text>
+    </g>
+  </g>
+
+  <!-- 5. Core Container (스프링의 심장) -->
+  <g transform="translate(40, 350)">
+    <rect width="720" height="82" rx="8" fill="#F0FDF4" stroke="#16A34A" stroke-width="2"/>
+    <text x="20" y="24" font-size="14" font-weight="700" fill="#15803D">Core Container (스프링의 기반 / 심장 - IoC &amp; DI)</text>
+    <g transform="translate(20, 34)">
+      <rect x="0" y="0" width="160" height="36" rx="6" fill="#FFFFFF" stroke="#86EFAC" stroke-width="1.5"/>
+      <text x="80" y="22" text-anchor="middle" font-size="13" font-weight="700" fill="#166534">Beans</text>
+      
+      <rect x="172" y="0" width="160" height="36" rx="6" fill="#FFFFFF" stroke="#86EFAC" stroke-width="1.5"/>
+      <text x="252" y="22" text-anchor="middle" font-size="13" font-weight="700" fill="#166534">Core</text>
+      
+      <rect x="344" y="0" width="170" height="36" rx="6" fill="#FFFFFF" stroke="#86EFAC" stroke-width="1.5"/>
+      <text x="429" y="22" text-anchor="middle" font-size="13" font-weight="700" fill="#166534">Context</text>
+      
+      <rect x="526" y="0" width="154" height="36" rx="6" fill="#FFFFFF" stroke="#86EFAC" stroke-width="1.5"/>
+      <text x="603" y="22" text-anchor="middle" font-size="13" font-weight="700" fill="#166534">SpEL (표현식)</text>
+    </g>
+  </g>
+</svg>

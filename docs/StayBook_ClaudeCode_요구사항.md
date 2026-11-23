@@ -1,4 +1,4 @@
-# StayBook 백엔드 1차 구현 요구사항 (Claude Code 전달용, 전체 feature)
+# StayBook 백엔드 1차 구현 요구사항 (Claude Code 전달용, 전체 feature) (2026-11-16)
 
 이 문서는 설계 단계에서 확정한 구조와 규칙입니다. 아래 내용대로 구현해 주세요. 문서와 기존 코드가 다르면 임의로 고치지 말고 먼저 물어봐 주세요.
 
@@ -158,7 +158,7 @@ auth, terms → user
 | 경로 | 기능 |
 |---|---|
 | `GET /api/regions`, `GET /api/amenities`, `GET /api/categories` | 지역, 편의시설, 카테고리 목록 |
-| `GET /api/accommodations` | 목록 검색 (지역 `regionId`, 카테고리 `categoryId`, 인원 `guestCount`, 페이지) |
+| `GET /api/accommodations` | 목록 검색 (지역 `regionId`, 카테고리 `categoryId`, 숙소명 `keyword`, 인원 `guestCount`, 날짜 `checkIn`·`checkOut`, 페이지) |
 | `GET /api/accommodations/{id}` | 상세 (이미지, 편의시설, 객실, 환불정책) |
 | `GET /api/host/accommodations` | 내 숙소 목록 (공개 상태와 관계없이 모두, 객실 수·공개 가능 여부 포함) |
 | `GET /api/host/accommodations/{id}` | 내 숙소 상세 (판매 중지 객실 포함) |
@@ -173,6 +173,9 @@ auth, terms → user
 - 환불정책은 수정하지 않고 새 버전을 만들어 `active`를 옮긴다. 기존 예약이 과거 버전을 참조하기 때문이다.
 - 지역, 편의시설, 카테고리 초기 데이터는 마이그레이션으로 넣는다.
 - 숙소는 카테고리 하나에 속한다. 등록할 때 `categoryId`는 필수이고, 검색 조건은 함께 쓰면 모두 만족하는 숙소만 나온다.
+- `keyword`는 숙소명에 그 글자가 들어 있는 숙소를 찾는다 (대소문자 구분 없음, 최대 100자, 비어 있으면 조건 없음).
+- `checkIn`·`checkOut`(yyyy-MM-dd)은 함께 보낸다. 그 기간의 모든 숙박일에 예약할 수 있는 객실(재고 행이 있고, 마감이 아니고, 남은 수량이 있음)이 있는 숙소만 나온다. 인원 조건과 함께 쓰면 한 객실이 둘 다 만족해야 한다. 날짜 검증은 예약 가능 여부 조회와 같다 (1박 이상 30박 이하, 체크인은 오늘 이후).
+- 날짜 조건은 inventory가 판정한다. 의존 방향(inventory → accommodation)을 지키기 위해 accommodation에 `RoomAvailabilityFinder` 인터페이스를 두고 inventory가 구현한다.
 
 ### 5.6 inventory
 
@@ -216,6 +219,8 @@ auth, terms → user
 | CONFIRMED → COMPLETED | 체크아웃 날짜 경과 |
 
 - 취소 환불액: 스냅샷 규칙에서 체크인까지 남은 일수에 맞는 `refund_rate`를 결제 금액에 곱한다. 나머지는 위약금이다.
+- 예약 응답(상세·목록)의 `refund`에 환불 내역을 싣는다: `refundAmount`(환불액), `penaltyAmount`(위약금), `status`(REQUESTED·COMPLETED·FAILED), `refundedAt`. 환불이 없었으면 null이다. 취소 요청의 응답에서는 환불 처리 전이라 null이고, 금액은 취소 응답의 `refundAmount`·`penaltyAmount`로 준다.
+- 환불 내역은 payment가 가진다. 의존 방향(payment → reservation)을 지키기 위해 reservation에 `RefundInfoProvider` 인터페이스를 두고 payment가 구현한다.
 - 선점 만료 스케줄러: 1분마다 `hold_expires_at`이 지난 PENDING 예약을 취소 처리한다.
 - 완료 처리 스케줄러: 매일 한 번 체크아웃이 지난 CONFIRMED 예약을 COMPLETED로 바꾼다.
 

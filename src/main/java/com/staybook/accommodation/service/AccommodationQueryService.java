@@ -31,9 +31,11 @@ import com.staybook.accommodation.repository.RegionRepository;
 import com.staybook.accommodation.repository.RoomImageRepository;
 import com.staybook.accommodation.repository.RoomRepository;
 import com.staybook.common.exception.BaseException;
+import com.staybook.common.exception.CommonErrorCode;
 import com.staybook.common.response.PageResponse;
 import com.staybook.host.service.HostService;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -68,6 +70,7 @@ public class AccommodationQueryService {
     private final RefundPolicyRepository refundPolicyRepository;
     private final RefundPolicyRuleRepository refundPolicyRuleRepository;
     private final HostService hostService;
+    private final RoomAvailabilityFinder roomAvailabilityFinder;
 
     // ---------- 공개 조회 ----------
 
@@ -92,22 +95,43 @@ public class AccommodationQueryService {
     /**
      * 목록 검색. LISTED인 숙소만, 최근 등록순.
      * 시·도를 고르면 그 아래 시·군·구의 숙소도 함께 나온다. 카테고리는 정확히 그 유형인 숙소만 나온다.
+     * keyword는 숙소명에 그 글자가 들어 있는 숙소(대소문자 구분 없음)만, 비어 있으면 조건으로 쓰지 않는다.
+     * checkIn·checkOut은 함께 보내야 하고, 그 기간 내내 예약할 수 있는 객실이 있는 숙소만 나온다.
+     * 인원과 날짜를 함께 쓰면 한 객실이 두 조건을 모두 만족해야 한다.
      */
-    public PageResponse<AccommodationSummary> search(Long regionId, Long categoryId, Integer guestCount, int page, int size) {
+    public PageResponse<AccommodationSummary> search(Long regionId, Long categoryId, String keyword,
+                                                     Integer guestCount, LocalDate checkIn, LocalDate checkOut,
+                                                     int page, int size) {
+        if ((checkIn == null) != (checkOut == null)) {
+            throw new BaseException(CommonErrorCode.INVALID_INPUT);
+        }
         List<Long> regionIds = new ArrayList<>();
         if (regionId != null) {
             regionIds.add(regionId);
             regionRepository.findByParentId(regionId).forEach(child -> regionIds.add(child.getId()));
         }
+        boolean filterDates = checkIn != null;
+        List<Long> availableRoomIds = filterDates
+                ? roomAvailabilityFinder.findAvailableRoomIds(checkIn, checkOut) : List.of();
         PageRequest pageable = PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), MAX_PAGE_SIZE),
                 Sort.by(Sort.Direction.DESC, "id"));
-        // 공개 조회에는 LISTED인 숙소만 나온다
+        // 공개 조회에는 LISTED인 숙소만 나온다. 빈 IN 목록은 쓸 수 없어 없는 ID(-1)를 넣는다
         Page<Accommodation> result = accommodationRepository.search(
                 Accommodation.ListingStatus.LISTED, Room.RoomStatus.ACTIVE, regionId != null,
-                regionId != null ? regionIds : List.of(-1L), categoryId, guestCount, pageable);
+                regionId != null ? regionIds : List.of(-1L), categoryId, toNamePattern(keyword), guestCount,
+                filterDates, availableRoomIds.isEmpty() ? List.of(-1L) : availableRoomIds, pageable);
 
         Map<Long, AccommodationSummary> summaries = toSummaries(result.getContent());
         return PageResponse.from(result, a -> summaries.get(a.getId()));
+    }
+
+    /** 검색어를 "포함" LIKE 패턴으로 바꾼다. 검색어 안의 %, _는 글자 그대로 찾도록 '!'로 이스케이프한다. */
+    private static String toNamePattern(String keyword) {
+        if (keyword == null || keyword.isBlank()) {
+            return null;
+        }
+        String escaped = keyword.trim().replace("!", "!!").replace("%", "!%").replace("_", "!_");
+        return "%" + escaped + "%";
     }
 
     /** 공개(LISTED)된 숙소의 목록용 요약. 찜 목록처럼 ID로 여러 숙소를 보여 줄 때 쓴다. 공개되지 않은 숙소는 빠진다. */

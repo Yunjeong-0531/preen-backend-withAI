@@ -14,7 +14,7 @@ public class CorsConfig {
     /** SecurityConfig의 cors()가 이 빈을 사용한다. 허용 출처는 쉼표로 구분한다. */
     @Bean
     public CorsConfigurationSource corsConfigurationSource(
-            @Value("${staybook.cors.allowed-origins:http://localhost:3000}") List<String> allowedOrigins) {
+            @Value("${staybook.cors.allowed-origins}") List<String> allowedOrigins) {
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowedOrigins(allowedOrigins);
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));

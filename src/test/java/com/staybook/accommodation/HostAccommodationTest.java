@@ -8,9 +8,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.databind.JsonNode;
 import com.staybook.host.domain.BusinessRegistrationNo;
 import com.staybook.support.IntegrationTestSupport;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 /** 3단계(host, accommodation) 통합 테스트. 실제 MySQL·Redis를 쓴다. */
@@ -569,6 +571,105 @@ class HostAccommodationTest extends IntegrationTestSupport {
     }
 
     @Test
+    void 숙소명으로_검색한다() throws Exception {
+        Member host = createHost();
+        String token = "kw" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
+        Listing ocean = createListedAccommodation(host, SEOGWIPO);
+        Listing city = createListedAccommodation(host, GANGNAM);
+        Listing other = createListedAccommodation(host, GANGNAM);
+        rename(host, ocean, "바다뷰 " + token + " 100%_스테이");
+        rename(host, city, token + " 시티 호텔");
+
+        // 이름에 검색어가 들어 있는 숙소만, 대소문자 구분 없이
+        assertThat(ids(searchBy("keyword", token))).containsExactlyInAnyOrder(ocean.accommodationId(),
+                city.accommodationId());
+        assertThat(ids(searchBy("keyword", "  " + token.toUpperCase() + " 시티 ")))
+                .containsExactly(city.accommodationId());
+        assertThat(ids(searchBy("keyword", "바다뷰 " + token))).containsExactly(ocean.accommodationId());
+        // %, _는 글자 그대로 찾는다
+        assertThat(ids(searchBy("keyword", token + " 100%_"))).containsExactly(ocean.accommodationId());
+        assertThat(ids(searchBy("keyword", token + " 1_0"))).isEmpty();
+        assertThat(ids(searchBy("keyword", token + "%호텔"))).isEmpty();
+        // 다른 조건과 함께 쓰면 모두 만족하는 숙소만 나온다
+        assertThat(ids(searchBy("keyword", token, "regionId", String.valueOf(JEJU))))
+                .containsExactly(ocean.accommodationId());
+        // 빈 검색어는 조건으로 쓰지 않는다
+        assertThat(ids(searchBy("keyword", " ", "regionId", String.valueOf(GANGNAM))))
+                .contains(city.accommodationId(), other.accommodationId());
+        // 공개되지 않은 숙소는 검색되지 않는다
+        patchJson("/api/host/accommodations/" + city.accommodationId() + "/listing-status",
+                body("listingStatus", "HIDDEN"), host.token()).andExpect(status().isOk());
+        assertThat(ids(searchBy("keyword", token))).containsExactly(ocean.accommodationId());
+
+        mockMvc.perform(get("/api/accommodations").param("keyword", "가".repeat(101)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void 날짜로_검색하면_그_기간에_예약할_수_있는_객실이_있는_숙소만_나온다() throws Exception {
+        Member host = createHost();
+        Member guest = createMember();
+        String token = "dt" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
+        LocalDate day1 = LocalDate.now().plusDays(20);
+        LocalDate day2 = day1.plusDays(1);
+        LocalDate day3 = day1.plusDays(2);
+        LocalDate day4 = day1.plusDays(3);
+        Listing open = createListedAccommodation(host, SEOGWIPO);        // day1~day2 재고 1개
+        Listing noStock = createListedAccommodation(host, SEOGWIPO);     // 재고를 설정하지 않은 숙소
+        rename(host, open, token + " 판매 중");
+        rename(host, noStock, token + " 재고 없음");
+        setInventory(host, open.roomId(), day1, day2, 1, 100000);
+
+        assertThat(ids(searchBy("keyword", token))).hasSize(2);
+        assertThat(ids(searchStay(token, day1, day3))).containsExactly(open.accommodationId());
+        assertThat(ids(searchStay(token, day2, day3))).containsExactly(open.accommodationId());
+        // 재고 행이 없는 날짜가 하루라도 끼면 빠진다
+        assertThat(ids(searchStay(token, day2, day4))).isEmpty();
+
+        // 인원과 함께 쓰면 한 객실이 두 조건을 모두 만족해야 한다 (최대 4명)
+        assertThat(ids(searchBy("keyword", token, "checkIn", day1.toString(), "checkOut", day3.toString(),
+                "guestCount", "4"))).containsExactly(open.accommodationId());
+        assertThat(ids(searchBy("keyword", token, "checkIn", day1.toString(), "checkOut", day3.toString(),
+                "guestCount", "5"))).isEmpty();
+
+        // 다른 회원이 선점한 날짜는 빠지고, 남은 날짜는 그대로 나온다
+        reserveOk(guest, open.roomId(), day1, day2, 2);
+        assertThat(ids(searchStay(token, day1, day3))).isEmpty();
+        assertThat(ids(searchStay(token, day2, day3))).containsExactly(open.accommodationId());
+
+        // 판매를 마감한 날짜도 빠진다
+        putJson("/api/host/rooms/" + open.roomId() + "/inventories",
+                body("startDate", day2.toString(), "endDate", day2.toString(), "closed", true), host.token())
+                .andExpect(status().isOk());
+        assertThat(ids(searchStay(token, day2, day3))).isEmpty();
+    }
+
+    @Test
+    void 날짜_검색_입력_검증() throws Exception {
+        LocalDate day = LocalDate.now().plusDays(20);
+
+        // 체크인·체크아웃은 함께 보내야 한다
+        mockMvc.perform(get("/api/accommodations").param("checkIn", day.toString()))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("COMMON-001"));
+        mockMvc.perform(get("/api/accommodations").param("checkOut", day.toString()))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("COMMON-001"));
+        mockMvc.perform(get("/api/accommodations").param("checkIn", day.toString()).param("checkOut", day.toString()))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("INVENTORY-002"));
+        mockMvc.perform(get("/api/accommodations").param("checkIn", LocalDate.now().minusDays(1).toString())
+                        .param("checkOut", day.toString()))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("INVENTORY-002"));
+        mockMvc.perform(get("/api/accommodations").param("checkIn", day.toString())
+                        .param("checkOut", day.plusDays(31).toString()))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("INVENTORY-003"));
+        mockMvc.perform(get("/api/accommodations").param("checkIn", "2026/01/01").param("checkOut", day.toString()))
+                .andExpect(status().isBadRequest());
+        // 오늘 체크인은 검색할 수 있다
+        mockMvc.perform(get("/api/accommodations").param("checkIn", LocalDate.now().toString())
+                        .param("checkOut", LocalDate.now().plusDays(1).toString()))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     void 목록은_페이지_단위로_나온다() throws Exception {
         Member host = createHost();
         createListedAccommodation(host, GANGNAM);
@@ -584,6 +685,24 @@ class HostAccommodationTest extends IntegrationTestSupport {
         // size는 최대 50으로 제한한다
         mockMvc.perform(get("/api/accommodations").param("size", "1000"))
                 .andExpect(jsonPath("$.data.size").value(50));
+    }
+
+    private void rename(Member host, Listing listing, String name) throws Exception {
+        patchJson("/api/host/accommodations/" + listing.accommodationId(), body("name", name), host.token())
+                .andExpect(status().isOk());
+    }
+
+    /** 이름·값 쌍을 쿼리 파라미터로 보낸다 (값은 인코딩된다). */
+    private JsonNode searchBy(String... params) throws Exception {
+        var request = get("/api/accommodations").param("size", "50");
+        for (int i = 0; i < params.length; i += 2) {
+            request.param(params[i], params[i + 1]);
+        }
+        return data(mockMvc.perform(request).andExpect(status().isOk())).get("content");
+    }
+
+    private JsonNode searchStay(String keyword, LocalDate checkIn, LocalDate checkOut) throws Exception {
+        return searchBy("keyword", keyword, "checkIn", checkIn.toString(), "checkOut", checkOut.toString());
     }
 
     private JsonNode search(String query) throws Exception {
